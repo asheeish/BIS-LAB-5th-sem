@@ -1,0 +1,369 @@
+import random
+import math
+
+# ==========================================
+# 1. DEFINE THE PROBLEM & PARAMETERS
+# ==========================================
+# Depot location (x, y)
+DEPOT = (0, 0)
+
+# Customers: ID -> (x, y, demand)
+CUSTOMERS = {
+    1: (2, 4, 3),
+    2: (-3, 5, 2),
+    3: (4, -2, 4),
+    4: (-1, -4, 1),
+    5: (5, 5, 5),
+    6: (-4, -3, 3),
+    7: (3, 3, 2),
+    8: (-2, 2, 4),
+}
+
+VEHICLE_CAPACITY = 8  # Maximum load per vehicle
+
+# GA Parameters
+POPULATION_SIZE = 20
+GENERATIONS = 100
+CROSSOVER_RATE = 0.8
+MUTATION_RATE = 0.2
+
+# Helper function to compute Euclidean distance
+def distance(p1, p2):
+    return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
+
+# Decode a chromosome (permutation of customer IDs) into valid vehicle routes
+def decode_routes(chromosome):
+    routes = []
+    current_route = []
+    current_load = 0
+    
+    for customer_id in chromosome:
+        demand = CUSTOMERS[customer_id][2]
+        if current_load + demand <= VEHICLE_CAPACITY:
+            current_route.append(customer_id)
+            current_load += demand
+        else:
+            routes.append(current_route)
+            current_route = [customer_id]
+            current_load = demand
+            
+    if current_route:
+        routes.append(current_route)
+        
+    return routes
+
+# ==========================================
+# 2. DEFINE FITNESS FUNCTION
+# ==========================================
+def calculate_fitness(chromosome):
+    """
+    Calculates total route distance (lower is better).
+    Returns 1 / total_distance for GA maximization fitness.
+    """
+    routes = decode_routes(chromosome)
+    total_distance = 0.0
+    
+    for route in routes:
+        # Distance from Depot to first customer
+        prev_loc = DEPOT
+        for customer_id in route:
+            curr_loc = (CUSTOMERS[customer_id][0], CUSTOMERS[customer_id][1])
+            total_distance += distance(prev_loc, curr_loc)
+            prev_loc = curr_loc
+        # Distance back to Depot from last customer
+        total_distance += distance(prev_loc, DEPOT)
+        
+    # Fitness is inverse of total distance
+    return 1.0 / total_distance, total_distance
+
+# ==========================================
+# 3. CREATE INITIAL POPULATION
+# ==========================================
+def create_initial_population(pop_size, customer_ids):
+    population = []
+    for _ in range(pop_size):
+        individual = customer_ids.copy()
+        random.shuffle(individual)
+        population.append(individual)
+    return population
+
+# ==========================================
+# 4. SELECTION (Tournament Selection)
+# ==========================================
+def select_parent(population, fitness_scores):
+    tournament_size = 3
+    selected = random.sample(list(zip(population, fitness_scores)), tournament_size)
+    selected.sort(key=lambda x: x[1][0], reverse=True)  # Sort by fitness (higher is better)
+    return selected[0][0]
+
+# ==========================================
+# 5. PERFORM CROSSOVER (Ordered Crossover - OX1)
+# ==========================================
+def perform_crossover(parent1, parent2):
+    if random.random() > CROSSOVER_RATE:
+        return parent1.copy(), parent2.copy()
+    
+    size = len(parent1)
+    p1, p2 = random.sample(range(size), 2)
+    start, end = min(p1, p2), max(p1, p2)
+    
+    def ox1(p1_seq, p2_seq):
+        child = [None] * size
+        child[start:end+1] = p1_seq[start:end+1]
+        
+        p2_idx = 0
+        for i in range(size):
+            if child[i] is None:
+                while p2_seq[p2_idx] in child:
+                    p2_idx += 1
+                child[i] = p2_seq[p2_idx]
+        return child
+
+    child1 = ox1(parent1, parent2)
+    child2 = ox1(parent2, parent1)
+    return child1, child2
+
+# ==========================================
+# 6. PERFORM MUTATION (Swap Mutation)
+# ==========================================
+def perform_mutation(chromosome):
+    if random.random() < MUTATION_RATE:
+        idx1, idx2 = random.sample(range(len(chromosome)), 2)
+        chromosome[idx1], chromosome[idx2] = chromosome[idx2], chromosome[idx1]
+    return chromosome
+
+# ==========================================
+# MAIN GENETIC ALGORITHM LOOP
+# ==========================================
+def run_genetic_algorithm():
+    customer_ids = list(CUSTOMERS.keys())
+    
+    # Create initial population
+    population = create_initial_population(POPULATION_SIZE, customer_ids)
+    
+    best_overall_solution = None
+    best_overall_distance = float('inf')
+    
+    for generation in range(1, GENERATIONS + 1):
+        # Calculate fitness for all solutions
+        fitness_scores = [calculate_fitness(ind) for ind in population]
+        
+        # Track best solution in current generation
+        for ind, (fit, dist) in zip(population, fitness_scores):
+            if dist < best_overall_distance:
+                best_overall_distance = dist
+                best_overall_solution = ind
+                
+        # Create new population
+        new_population = []
+        while len(new_population) < POPULATION_SIZE:
+            parent1 = select_parent(population, fitness_scores)
+            parent2 = select_parent(population, fitness_scores)
+            
+            child1, child2 = perform_crossover(parent1, parent2)
+            
+            child1 = perform_mutation(child1)
+            child2 = perform_mutation(child2)
+            
+            new_population.extend([child1, child2])
+            
+        # Replace old population with new population
+        population = new_population[:POPULATION_SIZE]
+
+    # Output the Best Solution
+    print("=" * 45)
+    print("       GENETIC ALGORITHM CVRP RESULTS       ")
+    print("=" * 45)
+    best_routes = decode_routes(best_overall_solution)
+    print(f"Best Total Distance: {best_overall_distance:.2f} units\n")
+    print("Optimal Routes:")
+    for i, route in enumerate(best_routes, 1):
+        route_demand = sum(CUSTOMERS[c][2] for c in route)
+        print(f"  Vehicle {i}: Depot -> {' -> '.join(map(str, route))} -> Depot (Demand: {route_demand}/{VEHICLE_CAPACITY})")
+    print("=" * 45)
+
+if __Here is a complete Python implementation of the **Capacitated Vehicle Routing Problem (CVRP)** using the Genetic Algorithm pseudocode and step-by-step structure provided in your notes[cite: 1, 2].
+
+In CVRP, a fleet of vehicles with a maximum load capacity must visit a set of customers (each with a specific demand) starting and returning to a central depot[cite: 1, 2]. The goal is to minimize the total travel distance while satisfying all vehicle capacity constraints[cite: 2].
+
+```python
+import random
+import math
+
+# ==========================================
+# 1. DEFINE THE PROBLEM & PARAMETERS
+# ==========================================
+DEPOT = (0, 0)
+VEHICLE_CAPACITY = 15
+
+# Customer coordinates (x, y) and their demand
+CUSTOMERS = [
+    {"id": 1, "pos": (2, 4), "demand": 3},
+    {"id": 2, "pos": (5, 2), "demand": 5},
+    {"id": 3, "pos": (1, 7), "demand": 4},
+    {"id": 4, "pos": (6, 8), "demand": 7},
+    {"id": 5, "pos": (4, 4), "demand": 2},
+    {"id": 6, "pos": (8, 3), "demand": 6},
+    {"id": 7, "pos": (3, 9), "demand": 3},
+]
+
+# GA Hyperparameters
+POPULATION_SIZE = 20
+GENERATIONS = 100
+CROSSOVER_RATE = 0.8
+MUTATION_RATE = 0.2
+
+# ==========================================
+# HELPER FUNCTIONS
+# ==========================================
+def euclidean_distance(p1, p2):
+    return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+
+def decode_routes(chromosome):
+    """
+    Splits a permutation sequence of customer IDs into valid vehicle routes
+    based on the vehicle capacity constraint.
+    """
+    routes = []
+    current_route = []
+    current_load = 0
+
+    for cust_id in chromosome:
+        cust = next(c for c in CUSTOMERS if c["id"] == cust_id)
+        if current_load + cust["demand"] <= VEHICLE_CAPACITY:
+            current_route.append(cust_id)
+            current_load += cust["demand"]
+        else:
+            routes.append(current_route)
+            current_route = [cust_id]
+            current_load = cust["demand"]
+    if current_route:
+        routes.append(current_route)
+        
+    return routes
+
+# ==========================================
+# GA CORE FUNCTIONS
+# ==========================================
+
+# Step 4: Evaluate Fitness (Inverse of Total Distance)
+def calculate_fitness(chromosome):
+    routes = decode_routes(chromosome)
+    total_distance = 0.0
+
+    for route in routes:
+        if not route:
+            continue
+        
+        # Distance from Depot to First Customer
+        first_cust = next(c for c in CUSTOMERS if c["id"] == route[0])
+        total_distance += euclidean_distance(DEPOT, first_cust["pos"])
+
+        # Distance between consecutive customers in the route
+        for i in range(len(route) - 1):
+            c1 = next(c for c in CUSTOMERS if c["id"] == route[i])
+            c2 = next(c for c in CUSTOMERS if c["id"] == route[i+1])
+            total_distance += euclidean_distance(c1["pos"], c2["pos"])
+
+        # Distance from Last Customer back to Depot
+        last_cust = next(c for c in CUSTOMERS if c["id"] == route[-1])
+        total_distance += euclidean_distance(last_cust["pos"], DEPOT)
+
+    # Return total distance and fitness value (higher fitness is better)
+    fitness = 1.0 / (total_distance + 1e-6)
+    return total_distance, fitness
+
+# Step 3: Create Initial Population
+def create_initial_population(pop_size):
+    customer_ids = [c["id"] for c in CUSTOMERS]
+    population = []
+    for _ in range(pop_size):
+        individual = customer_ids.copy()
+        random.shuffle(individual)
+        population.append(individual)
+    return population
+
+# Step 5: Selection (Tournament Selection)
+def selection(population, k=3):
+    selected = random.sample(population, k)
+    selected.sort(key=lambda ind: calculate_fitness(ind)[1], reverse=True)
+    return selected[0]
+
+# Step 6: Crossover (Ordered Crossover - OX)
+def crossover(parent1, parent2):
+    if random.random() > CROSSOVER_RATE:
+        return parent1.copy(), parent2.copy()
+
+    size = len(parent1)
+    cx1, cx2 = sorted(random.sample(range(size), 2))
+
+    def get_child(p1, p2):
+        child = [None] * size
+        child[cx1:cx2] = p1[cx1:cx2]
+        p2_fill = [item for item in p2 if item not in child]
+        
+        idx = 0
+        for i in range(size):
+            if child[i] is None:
+                child[i] = p2_fill[idx]
+                idx += 1
+        return child
+
+    child1 = get_child(parent1, parent2)
+    child2 = get_child(parent2, parent1)
+    return child1, child2
+
+# Step 7: Mutation (Swap Mutation)
+def mutate(chromosome):
+    if random.random() < MUTATION_RATE:
+        idx1, idx2 = random.sample(range(len(chromosome)), 2)
+        chromosome[idx1], chromosome[idx2] = chromosome[idx2], chromosome[idx1]
+    return chromosome
+
+# ==========================================
+# MAIN GENETIC ALGORITHM LOOP
+# ==========================================
+def main():
+    population = create_initial_population(POPULATION_SIZE)
+    best_solution = None
+    best_distance = float('inf')
+
+    # Steps 8: Iteration Loop
+    for gen in range(1, GENERATIONS + 1):
+        # Calculate fitness for all solutions
+        pop_evaluated = [(ind, calculate_fitness(ind)) for ind in population]
+        
+        # Track global best solution
+        for ind, (dist, fit) in pop_evaluated:
+            if dist < best_distance:
+                best_distance = dist
+                best_solution = ind
+
+        # Create new population
+        new_population = []
+        while len(new_population) < POPULATION_SIZE:
+            parent1 = selection(population)
+            parent2 = selection(population)
+            child1, child2 = crossover(parent1, parent2)
+            new_population.append(mutate(child1))
+            if len(new_population) < POPULATION_SIZE:
+                new_population.append(mutate(child2))
+
+        # Replace old population with new population
+        population = new_population
+
+    # Step 9: Output the Best Solution
+    print("=" * 45)
+    print("      GENETIC ALGORITHM CVRP RESULT      ")
+    print("=" * 45)
+    print(f"Best Total Travel Distance: {best_distance:.2f} units\n")
+    
+    routes = decode_routes(best_solution)
+    for i, route in enumerate(routes, 1):
+        route_demand = sum(next(c['demand'] for c in CUSTOMERS if c['id'] == cid) for cid in route)
+        print(f"Vehicle {i} Route: Depot (0) -> {' -> '.join(map(str, route))} -> Depot (0)")
+        print(f"  └─ Load Capacity Used: {route_demand}/{VEHICLE_CAPACITY}")
+    print("=" * 45)
+
+if __name__ == "__main__":
+    main()

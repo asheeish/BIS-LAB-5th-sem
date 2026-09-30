@@ -1,0 +1,12 @@
+START   Define fitness(x)
+Return x * x * x   Create initial population   For each generation:
+Calculate fitness of all solution
+Select the best solution
+Create the new population   Perform crossover
+  Combine two parent solutions
+  Create new child solutions
+
+Perform mutation
+  Randomly change a small part of a child
+Replace old population with new population[cite: 1]End For[cite: 1]Find the best solution[cite: 1]
+Print best solution and its fitness[cite: 1]Stop
